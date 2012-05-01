@@ -9,4 +9,6 @@ Gem::Specification.new do |s|
   s.files       = ["lib/emerald_api.rb"]
   s.homepage    =
     'http://rubygems.org/gems/emerald_api'
+
+  s.add_runtime_dependency "faraday"
 end

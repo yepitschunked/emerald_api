@@ -7,7 +7,7 @@ class Emerald
 
   private
   def self.connection
-    if self.url.blank?
+    if self.url.nil?
       raise "You need to set Emerald.url before using this library!"
     else
       conn = Faraday.new(:url => self.url) do |builder|

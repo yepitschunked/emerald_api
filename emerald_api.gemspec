@@ -11,4 +11,5 @@ Gem::Specification.new do |s|
     'http://rubygems.org/gems/emerald_api'
 
   s.add_runtime_dependency "faraday"
+  s.add_runtime_dependency "faraday_middleware"
 end

@@ -2,8 +2,13 @@
 # This class lets you look up purchase-related information
 # on Emerald.
 
+require 'faraday'
+require 'faraday_middleware'
+
 class Emerald
-  cattr_accessor :url
+  class << self
+    attr_accessor :url
+  end
 
   private
   def self.connection
@@ -27,7 +32,25 @@ class Emerald
     begin
       resp = connection.get("/emerald_api/packages/show/#{code}")
       if resp.success?
-        resp.body
+        package = resp.body
+        package.cost = package.cost_in_cents / 100.0
+        package
+      else
+        nil
+      end
+    rescue Faraday::Error::ConnectionFailed
+      nil
+    end
+  end
+
+  ##
+  # Lists all packages on Emerald.
+  #
+  def self.packages
+    begin
+      resp = connection.get("/emerald_api/packages/index")
+      if resp.success?
+        resp.body.map {|package| package.cost = package.cost_in_cents / 100.0; package}
       else
         nil
       end
@@ -48,6 +71,7 @@ class Emerald
       end
       if resp.success?
         coupon = resp.body
+        coupon.discount = coupon.discount_in_cents / 100.0
         coupon
       else
         nil

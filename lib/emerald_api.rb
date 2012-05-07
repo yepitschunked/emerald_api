@@ -38,7 +38,7 @@ class Emerald
       else
         nil
       end
-    rescue Faraday::Error::ConnectionFailed
+    rescue Faraday::Error::ConnectionFailed,Faraday::Error::ParsingError
       nil
     end
   end
@@ -54,7 +54,7 @@ class Emerald
       else
         nil
       end
-    rescue Faraday::Error::ConnectionFailed
+    rescue Faraday::Error::ConnectionFailed,Faraday::Error::ParsingError
       nil
     end
   end
@@ -76,7 +76,7 @@ class Emerald
       else
         nil
       end
-    rescue Faraday::Error::ConnectionFailed
+    rescue Faraday::Error::ConnectionFailed,Faraday::Error::ParsingError
       nil
     end
   end

@@ -68,6 +68,7 @@ class Emerald
     begin
       resp = connection.get("/emerald_api/coupons/show/#{code}") do |req|
         req.params[:product_key] = purchase.code
+        req.params[:organization] = purchase.organization
       end
       if resp.success?
         coupon = resp.body

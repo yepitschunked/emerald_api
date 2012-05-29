@@ -13,4 +13,6 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency "faraday"
   s.add_runtime_dependency "faraday_middleware"
   s.add_runtime_dependency "hashie"
+
+  s.add_development_dependency 'rspec'
 end

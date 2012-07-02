@@ -111,7 +111,7 @@ class Emerald
     end
 
     def subtotal_in_cents
-      self.package.cost_in_cents + self.variants.inject(0) {|sum, v| sum += v.cost_in_cents}
+      self.package.cost_in_cents + self.variants.select {|v| !v.default? }.inject(0) {|sum, v| sum += v.cost_in_cents}
     end
 
     def total_in_cents

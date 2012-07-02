@@ -108,6 +108,10 @@ describe Emerald do
     end
 
     describe 'subtotal_in_cents' do
+      it 'should not include cost of default variants' do
+        @mock_package.variants << Emerald::Variant.new(name: 'default variant', code: 'default_variant', cost_in_cents: 12345, default: true)
+        purchase.subtotal_in_cents.should == @mock_package.cost_in_cents
+      end
       it 'should be package cost with no variants' do
         purchase.subtotal_in_cents.should == @mock_package.cost_in_cents
       end

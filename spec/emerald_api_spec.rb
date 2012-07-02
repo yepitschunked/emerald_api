@@ -90,9 +90,14 @@ describe Emerald do
     describe 'variants' do
       context 'with invalid variants' do
         it 'should raise VariantNotFound' do
-          invalid_purchase = purchase(variants: ['asdfasdf'])
-          expect { invalid_purchase.variants }.to raise_error(Emerald::Error::VariantNotFound, 'asdfasdf')
+          expect { purchase(variants: ['asdfasdf']) }.to raise_error(Emerald::Error::VariantNotFound, 'asdfasdf')
         end
+      end
+      it 'should always contain the package default variants' do
+        @mock_package.variants << Emerald::Variant.new(name: 'default variant', code: 'default_variant', cost_in_cents: 12345, default: true)
+        p = purchase(variants: ['vitamin_d'])
+        p.variants.length.should == 2
+        p.variants.detect {|v| v.code == 'default_variant'}.should_not be_nil
       end
       it 'should return an array of variant objects, not strings' do
         purchase(variants: ['vitamin_b']).variants.first.should == @mock_package.find_variant_by_code('vitamin_b')

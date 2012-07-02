@@ -31,6 +31,9 @@ class Emerald
         self.variants = self.variants.map {|var| Emerald::Variant.new(var) }
       end
     end
+    def default_variants
+      self.variants.select {|v| v.default? }
+    end
     def find_variant_by_code(variant_code)
       self.variants.detect {|v| v.code == variant_code}
     end
@@ -81,7 +84,7 @@ class Emerald
       # This is necessary so doing something like purchase.variants << 'asdf'
       # will work as expected.
       inflate_variant_codes
-      @variants
+      @variants + self.package.default_variants # always include one of each of the default variants
     end
 
     def package=(package_or_package_code)

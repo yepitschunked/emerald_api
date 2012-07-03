@@ -160,7 +160,7 @@ class Emerald
     if self.url.nil?
       raise "You need to set Emerald.url before using this library!"
     else
-      conn = Faraday.new(:url => self.url) do |builder|
+      conn = Faraday.new(ssl: {ca_file: File.join(Rails.root, 'config', "cacert.pem")}, :url => self.url) do |builder|
         builder.use FaradayMiddleware::Mashify
         builder.use FaradayMiddleware::ParseJson
         builder.adapter Faraday.default_adapter

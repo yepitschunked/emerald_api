@@ -38,6 +38,17 @@ describe Emerald do
     it 'should respond to .active?' do
       @mock_package.should respond_to(:active?)
     end
+    describe 'default and choosable variants' do
+      before do
+        @mock_package.variants << Emerald::Variant.new(name: 'default variant', code: 'default_variant', cost_in_cents: 12345, default: true)
+      end
+      it 'should return #choosable_variants' do
+        @mock_package.choosable_variants.map(&:code).should == ['vitamin_d', 'vitamin_b']
+      end
+      it 'should return #default_variants' do
+        @mock_package.default_variants.map(&:code).should == ['default_variant']
+      end
+    end
   end
 
   describe Emerald::Purchase do

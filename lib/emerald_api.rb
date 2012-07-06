@@ -34,6 +34,9 @@ class Emerald
     def default_variants
       self.variants.select {|v| v.default? }
     end
+    def choosable_variants
+      self.variants - self.default_variants
+    end
     def find_variant_by_code(variant_code)
       self.variants.detect {|v| v.code == variant_code}
     end

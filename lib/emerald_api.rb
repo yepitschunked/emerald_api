@@ -26,10 +26,9 @@ class Emerald
         attrs = attrs.as_json
       end
       attrs.each {|k,v| self.send("#{k}=", v) if self.respond_to?("#{k}=")}
-      if @variants
-        # Hashie doesn't really like being subclassed, if you couldn't tell
-        self.variants = self.variants.map {|var| Emerald::Variant.new(var) }
-      end
+      @variants ||= []
+      # Hashie doesn't really like being subclassed, if you couldn't tell
+      self.variants = self.variants.map {|var| Emerald::Variant.new(var) }
     end
     def default_variants
       self.variants.select {|v| v.default? }

@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name        = 'emerald_api'
-  s.version     = '1.0.0'
+  s.version     = '3.5.1'
   s.date        = '2012-05-01'
   s.summary     = "Emerald API"
   s.description = "Interfaces with Emerald"
@@ -15,4 +15,5 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency "hashie"
 
   s.add_development_dependency 'rspec'
+  s.add_development_dependency 'activesupport'
 end

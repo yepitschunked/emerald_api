@@ -104,11 +104,9 @@ describe Emerald do
           expect { purchase(variants: ['asdfasdf']) }.to raise_error(Emerald::Error::VariantNotFound, 'asdfasdf')
         end
       end
-      it 'should always contain the package default variants' do
+      it 'should add the package default variants when creating a new purchase' do
         @mock_package.variants << Emerald::Variant.new(name: 'default variant', code: 'default_variant', cost_in_cents: 12345, default: true)
-        p = purchase(variants: ['vitamin_d'])
-        p.variants.length.should == 2
-        p.variants.detect {|v| v.code == 'default_variant'}.should_not be_nil
+        purchase.variants.detect {|v| v.code == 'default_variant'}.should_not be_nil
       end
       it 'should return an array of variant objects, not strings' do
         purchase(variants: ['vitamin_b']).variants.first.should == @mock_package.find_variant_by_code('vitamin_b')
@@ -119,7 +117,7 @@ describe Emerald do
     end
 
     describe 'subtotal_in_cents' do
-      it 'should not include cost of default variants' do
+      it 'should subtract cost of default variants' do
         @mock_package.variants << Emerald::Variant.new(name: 'default variant', code: 'default_variant', cost_in_cents: 12345, default: true)
         purchase.subtotal_in_cents.should == @mock_package.cost_in_cents
       end

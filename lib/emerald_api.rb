@@ -5,6 +5,8 @@
 require 'faraday'
 require 'faraday_middleware'
 require 'hashie/mash'
+require 'active_support/json' # for as_json support in tests
+require 'active_support/core_ext'
 
 class Emerald
   module Error
@@ -31,13 +33,13 @@ class Emerald
       self.variants = self.variants.map {|var| Emerald::Variant.new(var) }
     end
     def default_variants
-      self.variants.select {|v| v.default? }
+      self.variants.select {|v| v.default? }.dup
     end
     def choosable_variants
-      self.variants - self.default_variants
+      self.variants - self.default_variants.dup
     end
     def find_variant_by_code(variant_code)
-      self.variants.detect {|v| v.code == variant_code}
+      self.variants.detect {|v| v.code == variant_code}.dup
     end
 
     def ==(other)
@@ -63,7 +65,7 @@ class Emerald
       self.package = package_or_package_code
       self.organization = options[:organization]
 
-      self.variants = options[:variants] || []
+      self.variants = (options[:variants] || []) + self.package.default_variants.map(&:dup)
       self.coupon = options[:coupon_code]
     end
 
@@ -86,7 +88,25 @@ class Emerald
       # This is necessary so doing something like purchase.variants << 'asdf'
       # will work as expected.
       inflate_variant_codes
-      @variants + self.package.default_variants # always include one of each of the default variants
+      # Figure out which variants were "default" - this is a little hacky
+      # in that you may have upgraded from one variant to another. Since these
+      # variants don't have unique identifiers, if your package came with a
+      # consult and you added a consult of the same type/duration, we don't
+      # know which is which.
+      #
+      # So the heuristic used here is to match by variant types - if your
+      # package came with two consults we'll pick two consults in your purchase
+      # and say they came with the package, and the rest are additional.
+      @variants.each {|v| v[:default] = false}
+      @package.default_variants.each do |dv|
+        vtype = dv.code.split('.').first
+        should_be_default = @variants.detect {|v| !v.default? && v.code.split('.').first == vtype}
+        if should_be_default
+          should_be_default[:default] = true
+          should_be_default[:default_code] = dv.code
+        end
+      end
+      @variants
     end
 
     def package=(package_or_package_code)
@@ -113,7 +133,7 @@ class Emerald
     end
 
     def subtotal_in_cents
-      self.package.cost_in_cents + self.variants.select {|v| !v.default? }.inject(0) {|sum, v| sum += v.cost_in_cents}
+      self.package.cost_in_cents + self.variants.map(&:cost_in_cents).sum - self.package.default_variants.map(&:cost_in_cents).sum
     end
 
     def total_in_cents
@@ -136,7 +156,9 @@ class Emerald
       super.merge(subtotal_in_cents: subtotal_in_cents,
                   subtotal: subtotal,
                   total_in_cents: total_in_cents,
-                  total: total)
+                  total: total,
+                  variants: variants
+                 ).stringify_keys
     end
 
     private

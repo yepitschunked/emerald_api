@@ -21,7 +21,7 @@ class Emerald
   # mash, package.variants would get converted from an array of Emerald::Variant
   # mashes to an array of Emerald::Package variants.
   class Emerald::Package
-    attr_accessor :active, :code, :cost_in_cents, :description, :name, :variants
+    attr_accessor :active, :code, :cost_in_cents, :description, :name, :variants, :configurable
     # Turn the variants array into Variant objects
     def initialize(attrs)
       if attrs.is_a? Emerald::Package
@@ -48,6 +48,10 @@ class Emerald
 
     def active?
       !!self.active
+    end
+
+    def configurable?
+      !!self.configurable
     end
   end
 

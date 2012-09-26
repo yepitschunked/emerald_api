@@ -39,7 +39,7 @@ class Emerald
       self.variants - self.default_variants.dup
     end
     def find_variant_by_code(variant_code)
-      self.variants.detect {|v| v.code == variant_code}.dup
+      self.variants.detect {|v| v.code == variant_code}.try(:dup)
     end
 
     def ==(other)
@@ -71,6 +71,13 @@ class Emerald
 
       self.variants = (options[:variants] || []) + self.package.default_variants.map(&:dup)
       self.coupon = options[:coupon_code]
+    end
+
+    def self.upgrade_for(variant_code)
+      purchase = self.new('base_package')
+      purchase.package.variants.detect {|v| v.code == variant_code}[:default] = true
+      purchase.variants << variant_code
+      purchase
     end
 
     def ==(other)
@@ -188,7 +195,11 @@ class Emerald
     if self.url.nil?
       raise "You need to set Emerald.url before using this library!"
     else
-      conn = Faraday.new(ssl: {ca_file: File.join(Rails.root, 'config', "cacert.pem")}, :url => self.url) do |builder|
+      conn_opts = {url: self.url}
+      if defined? Rails
+        conn_opts[:ssl] = {:ca_file => File.join(Rails.root, 'config', "cacert.pem")}
+      end
+      conn = Faraday.new(conn_opts) do |builder|
         builder.use FaradayMiddleware::Mashify
         builder.use FaradayMiddleware::ParseJson
         builder.adapter Faraday.default_adapter

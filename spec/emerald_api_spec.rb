@@ -11,8 +11,8 @@ def build_mock_package
    "created_at"=>"2012-05-29T17:25:52Z",
    "updated_at"=>"2012-05-29T17:25:52Z",
    "variants"=>
-    [{"name"=>"Vitamin D", "cost_in_cents"=>4000, "code"=>"vitamin_d"},
-      {"name"=>"Vitamin B", "cost_in_cents"=>1000, "code"=>"vitamin_b"}
+    [{"name"=>"Vitamin D", "cost_in_cents"=>4000, "code"=>"vitamin_d", 'default' => false},
+      {"name"=>"Vitamin B", "cost_in_cents"=>1000, "code"=>"vitamin_b", 'default' => false}
     ]
   })
 end
@@ -67,6 +67,33 @@ describe Emerald do
       end
       it 'should set the organization' do
         purchase(organization: 'test org').organization.should == 'test org'
+      end
+    end
+
+    # XXX: This test depends on Emerald being up, but it was easier than trying
+    # to scaffold out a bunch of packages and variants and shit
+    describe 'upgrade_for' do
+      before do
+        Emerald.stub(:url).and_return('http://emerald-acceptance.herokuapp.com')
+      end
+      it 'should return a purchase object' do
+        Emerald::Purchase.upgrade_for('consult.physician.45').should be_a Emerald::Purchase
+      end
+      it 'should be base_package' do
+        Emerald::Purchase.upgrade_for('consult.physician.45').package.code.should == 'base_package'
+      end
+      it 'should only have one line item (the consult)' do
+        purchase = Emerald::Purchase.upgrade_for('consult.physician.45')
+        purchase.variants.length.should == 1
+        purchase.variants.first.code.should =~ /consult/
+      end
+      it 'should have the consult marked as default' do
+        purchase = Emerald::Purchase.upgrade_for('consult.physician.45')
+        purchase.variants.first.should be_default
+      end
+      it 'should have the consult default_code equal to the consult to be upgraded from' do
+        purchase = Emerald::Purchase.upgrade_for('consult.physician.45')
+        purchase.variants.first.default_code.should == "consult.physician.45"
       end
     end
 

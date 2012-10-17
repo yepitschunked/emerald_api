@@ -214,7 +214,7 @@ class Emerald
   #
   def self.find_package(code)
     begin
-      resp = connection.get("/emerald_api/packages/show/#{code}")
+      resp = connection.get("/emerald_api/packages/show/#{URI.escape code}")
       if resp.success?
         Package.new(resp.body)
       else
@@ -248,7 +248,7 @@ class Emerald
   #
   def self.find_coupon(code, purchase)
     begin
-      resp = connection.get("/emerald_api/coupons/show/#{code}") do |req|
+      resp = connection.get("/emerald_api/coupons/show/#{URI.escape code}") do |req|
         req.params[:product_key] = purchase.package.code
         req.params[:organization] = purchase.organization
       end

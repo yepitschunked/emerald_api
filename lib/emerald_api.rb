@@ -200,6 +200,10 @@ class Emerald
         conn_opts[:ssl] = {:ca_file => File.join(Rails.root, 'config', "cacert.pem")}
       end
       conn = Faraday.new(conn_opts) do |builder|
+        # Heroku may take some time to spin up an instance, so open_timeout is
+        # somewhat long
+        builder.options[:timeout] = 5
+        builder.options[:open_timeout] = 5
         builder.use FaradayMiddleware::Mashify
         builder.use FaradayMiddleware::ParseJson
         builder.adapter Faraday.default_adapter

@@ -202,8 +202,8 @@ class Emerald
       conn = Faraday.new(conn_opts) do |builder|
         # Heroku may take some time to spin up an instance, so open_timeout is
         # somewhat long
-        builder.options[:timeout] = 5
-        builder.options[:open_timeout] = 5
+        builder.options[:timeout] = 10
+        builder.options[:open_timeout] = 10
         builder.use FaradayMiddleware::Mashify
         builder.use FaradayMiddleware::ParseJson
         builder.adapter Faraday.default_adapter

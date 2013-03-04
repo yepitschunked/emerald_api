@@ -58,12 +58,13 @@ class Emerald
   # These classes help us identify what a particular hashie is
   class Emerald::Coupon < Hashie::Mash; end
   class Emerald::Variant < Hashie::Mash; end
+  class Emerald::Credit < Hashie::Mash; end
 
   class Purchase
-    attr_accessor :package, :variants, :coupon, :organization, :signature
+    attr_accessor :package, :variants, :coupon, :organization, :signature, :credit, :original_credit
 
     # +package_or_package_code+
-    # +options+: organization, variants, and coupon_code
+    # +options+: organization, variants, credit, and coupon_code
     #
     def initialize(package_or_package_code, options={})
       self.package = package_or_package_code
@@ -71,6 +72,8 @@ class Emerald
 
       self.variants = (options[:variants] || []) + self.package.default_variants.map(&:dup)
       self.coupon = options[:coupon_code]
+      @original_credit = options[:credit]
+      self.credit = options[:credit]
     end
 
     def self.upgrade_for(variant_code)
@@ -83,7 +86,7 @@ class Emerald
     def ==(other)
       self.object_id == other.object_id || self.as_json == other.as_json
     end
-
+  
     def variants=(variants)
       if variants.is_a?(Array)
         @variants = variants
@@ -130,6 +133,17 @@ class Emerald
       end
     end
 
+    def credit=(credit_in_cents)
+      @credit = Credit.new({"credit_in_cents" => (credit_in_cents ? credit_in_cents : 0)})
+ 
+      # credit is applied after coupon
+      if self.coupon
+        @credit.credit_in_cents = [@credit.credit_in_cents, self.subtotal_in_cents - self.coupon.discount_in_cents].min
+      else
+        @credit.credit_in_cents = [@credit.credit_in_cents, self.subtotal_in_cents].min
+      end
+    end
+
     def coupon=(coupon_or_coupon_code)
       if coupon_or_coupon_code.is_a?(Coupon) || coupon_or_coupon_code.nil? # no modification needed
         @coupon = coupon_or_coupon_code
@@ -141,6 +155,8 @@ class Emerald
         end
         @coupon = coupon
       end
+      # let credit setting logic reapply if a coupon is applied after credit is set
+      self.credit = @original_credit
     end
 
     def subtotal_in_cents
@@ -149,9 +165,9 @@ class Emerald
 
     def total_in_cents
       if self.coupon
-        self.subtotal_in_cents - self.coupon.discount_in_cents
+        self.subtotal_in_cents - self.coupon.discount_in_cents - self.credit.credit_in_cents
       else
-        self.subtotal_in_cents
+        self.subtotal_in_cents - self.credit.credit_in_cents
       end
     end
 

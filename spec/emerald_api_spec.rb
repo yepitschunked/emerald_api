@@ -28,7 +28,6 @@ def build_mock_coupon
    "updated_at"=>"2012-05-29T20:31:22Z"})
 end
 
-
 describe Emerald do
   before do
     @mock_coupon = build_mock_coupon
@@ -67,6 +66,12 @@ describe Emerald do
       end
       it 'should set the organization' do
         purchase(organization: 'test org').organization.should == 'test org'
+      end
+      it 'should default the credit to 0 if none is passed' do
+        purchase.credit.should == Emerald::Credit.new({"credit_in_cents"=>0})
+      end
+      it 'should set the credit if passed' do
+        purchase(credit: 1).credit.should == Emerald::Credit.new({"credit_in_cents"=>1})
       end
     end
 
@@ -125,6 +130,27 @@ describe Emerald do
       end
     end
 
+    describe '#credit=' do
+      it "should set the credit" do
+        purchase(credit: 1100).credit.credit_in_cents.should == 1100
+      end
+      context "with no coupons" do
+        it "should change credit_in_cents to be <= the subtotal" do
+          # purchase = 14900
+          purchase(credit: 15000).credit.credit_in_cents.should == 14900
+        end
+      end
+      context "with coupons" do
+        it "should change credit_in_cents to be <= the subtotal minus coupons" do
+          # mock_coupon = 1500
+          purchase(credit: 15000).tap {|p| p.coupon = @mock_coupon}.credit.credit_in_cents.should == 13400
+        end
+        it "should change credit_in_cents appropriately if coupon is removed" do
+          purchase(credit: 15000).tap {|p| p.coupon = @mock_coupon; p.coupon = nil}.credit.credit_in_cents.should == 14900
+        end
+      end
+    end
+
     describe 'variants' do
       context 'with invalid variants' do
         it 'should raise VariantNotFound' do
@@ -160,6 +186,9 @@ describe Emerald do
       it 'should have subtotal helper method' do
         purchase.subtotal.should == purchase.subtotal_in_cents / 100.0
       end
+      it "should ignore credit" do
+        purchase(credit: 1000).subtotal_in_cents.should == @mock_package.cost_in_cents
+      end
     end
 
     describe 'total_in_cents' do
@@ -173,6 +202,9 @@ describe Emerald do
       end
       it 'should have total helper method' do
         purchase.total.should == purchase.total_in_cents / 100.0
+      end
+      it "should be subtotal minus credit" do
+        purchase(credit: 1000).total_in_cents.should == purchase.total_in_cents - 1000
       end
     end
   end

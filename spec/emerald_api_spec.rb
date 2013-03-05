@@ -73,6 +73,12 @@ describe Emerald do
       it 'should set the credit if passed' do
         purchase(credit: 1).credit.should == Emerald::Credit.new({"credit_in_cents"=>1})
       end
+      it 'should not default the discount if none is passed' do
+        purchase.discount.should be_nil
+      end
+      it 'should set the discount if passed' do
+        purchase(discount: 1).discount.should == Emerald::Discount.new({"discount_in_cents"=>1})
+      end
     end
 
     # XXX: This test depends on Emerald being up, but it was easier than trying
@@ -149,6 +155,35 @@ describe Emerald do
           purchase(credit: 15000).tap {|p| p.coupon = @mock_coupon; p.coupon = nil}.credit.credit_in_cents.should == 14900
         end
       end
+      context "with credit" do
+        it "should change credit_in_cents to be <= the subtotal minus discount" do
+          purchase(credit: 15000).tap {|p| p.discount = 1500}.credit.credit_in_cents.should == 13400
+        end
+      end
+    end
+
+    describe "#discount=" do
+      it "should set the discount" do
+        purchase(discount: 1100).discount.discount_in_cents.should == 1100
+      end
+      context "with no coupons" do
+        it "should change discount_in_cents to be <= the subtotal" do
+          purchase(discount: 15000).discount.discount_in_cents.should == 14900
+        end
+      end
+      context "with coupons" do
+        it "should change discount_in_cents to be <= the subtotal minus coupons" do
+          purchase(discount: 15000).tap {|p| p.coupon = @mock_coupon}.discount.discount_in_cents.should == 13400
+        end
+        it "should change discount_in_cents appropriately if coupon is removed" do
+          purchase(discount: 15000).tap {|p| p.coupon = @mock_coupon; p.coupon = nil}.discount.discount_in_cents.should == 14900
+        end
+      end
+      context "with credit" do
+        it "should not change discount_in_cents to be <= the subtotal minus credit" do
+          purchase(discount: 15000).tap {|p| p.credit = 1500}.discount.discount_in_cents.should == 14900
+        end
+      end
     end
 
     describe 'variants' do
@@ -189,6 +224,9 @@ describe Emerald do
       it "should ignore credit" do
         purchase(credit: 1000).subtotal_in_cents.should == @mock_package.cost_in_cents
       end
+      it "should ignore credit" do
+        purchase(discount: 1000).subtotal_in_cents.should == @mock_package.cost_in_cents
+      end
     end
 
     describe 'total_in_cents' do
@@ -205,6 +243,9 @@ describe Emerald do
       end
       it "should be subtotal minus credit" do
         purchase(credit: 1000).total_in_cents.should == purchase.total_in_cents - 1000
+      end
+      it "should be subtotal minus discount" do
+        purchase(discount: 1000).total_in_cents.should == purchase.total_in_cents - 1000
       end
     end
   end

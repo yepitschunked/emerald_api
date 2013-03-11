@@ -227,6 +227,9 @@ describe Emerald do
       it "should ignore credit" do
         purchase(discount: 1000).subtotal_in_cents.should == @mock_package.cost_in_cents
       end
+      it "should accurately determine total when reconstituted from a hash" do
+        purchase.tap{|p| p.instance_variable_set(:@credit, nil)}.subtotal_in_cents.should == 14900
+      end
     end
 
     describe 'total_in_cents' do
@@ -246,6 +249,9 @@ describe Emerald do
       end
       it "should be subtotal minus discount" do
         purchase(discount: 1000).total_in_cents.should == purchase.total_in_cents - 1000
+      end
+      it "should accurately determine total when reconstituted from a hash" do
+        purchase.tap{|p| p.instance_variable_set(:@credit, nil)}.total_in_cents.should == 14900
       end
     end
   end

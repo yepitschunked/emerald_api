@@ -178,7 +178,8 @@ class Emerald
     end
 
     def total_in_cents
-      total_in_cents = self.subtotal_in_cents - self.credit.credit_in_cents
+      total_in_cents = self.subtotal_in_cents
+      total_in_cents = total_in_cents - self.credit.credit_in_cents if self.credit
       total_in_cents = total_in_cents - self.coupon.discount_in_cents if self.coupon
       total_in_cents = total_in_cents - self.discount.discount_in_cents if self.discount
       total_in_cents

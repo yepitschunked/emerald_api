@@ -88,22 +88,22 @@ describe Emerald do
         Emerald.stub(:url).and_return('http://emerald-acceptance.herokuapp.com')
       end
       it 'should return a purchase object' do
-        Emerald::Purchase.upgrade_for('consult.physician.45').should be_a Emerald::Purchase
+        Emerald::Purchase.upgrade_for('consult.physician.45', available_in_state: 'CA').should be_a Emerald::Purchase
       end
       it 'should be base_package' do
-        Emerald::Purchase.upgrade_for('consult.physician.45').package.code.should == 'base_package'
+        Emerald::Purchase.upgrade_for('consult.physician.45', available_in_state: 'CA').package.code.should == 'base_package'
       end
       it 'should only have one line item (the consult)' do
-        purchase = Emerald::Purchase.upgrade_for('consult.physician.45')
+        purchase = Emerald::Purchase.upgrade_for('consult.physician.45', available_in_state: 'CA')
         purchase.variants.length.should == 1
         purchase.variants.first.code.should =~ /consult/
       end
       it 'should have the consult marked as default' do
-        purchase = Emerald::Purchase.upgrade_for('consult.physician.45')
+        purchase = Emerald::Purchase.upgrade_for('consult.physician.45', available_in_state: 'CA')
         purchase.variants.first.should be_default
       end
       it 'should have the consult default_code equal to the consult to be upgraded from' do
-        purchase = Emerald::Purchase.upgrade_for('consult.physician.45')
+        purchase = Emerald::Purchase.upgrade_for('consult.physician.45', available_in_state: 'CA')
         purchase.variants.first.default_code.should == "consult.physician.45"
       end
     end

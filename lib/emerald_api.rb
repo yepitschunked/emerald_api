@@ -86,6 +86,11 @@ class Emerald
       purchase
     end
 
+    def self.new_consult_purchase(options = {})
+      # a little hacky, but it let's you upgrade from 0 which is equivalent to purchasing new
+      upgrade_for('consult.physician.0')
+    end
+
     def ==(other)
       self.object_id == other.object_id || self.as_json == other.as_json
     end

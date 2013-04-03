@@ -91,7 +91,7 @@ class Emerald
 
     def self.new_consult_purchase(options = {})
       # a little hacky, but it let's you upgrade from 0 which is equivalent to purchasing new
-      upgrade_for('consult.physician.0')
+      upgrade_for('consult.physician.0', options)
     end
 
     def ==(other)
@@ -304,6 +304,9 @@ class Emerald
   # argument.
   #
   def self.find_coupon(code, purchase)
+    if Rails.env.test?
+      mock_coupon = Emerald::Test::find_mock_coupon(code, purchase) and return mock_coupon
+    end
     begin
       resp = connection.get("/emerald_api/coupons/show/#{URI.escape code}") do |req|
         req.params[:product_key] = purchase.package.code

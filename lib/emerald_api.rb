@@ -62,12 +62,13 @@ class Emerald
   class Emerald::Discount < Hashie::Mash; end
 
   class Purchase
-    attr_accessor :package, :variants, :coupon, :organization, :signature, :credit, :discount
+    attr_accessor :package, :variants, :coupon, :organization, :signature, :credit, :discount, :available_in_state
 
     # +package_or_package_code+
     # +options+: organization, variants, credit, discount, and coupon_code
     #
     def initialize(package_or_package_code, options={})
+      self.available_in_state = options[:available_in_state]
       self.package = package_or_package_code
       self.organization = options[:organization]
 
@@ -79,16 +80,18 @@ class Emerald
       self.discount = options[:discount]
     end
 
-    def self.upgrade_for(variant_code)
-      purchase = self.new('base_package')
-      purchase.package.variants.detect {|v| v.code == variant_code}[:default] = true
+    def self.upgrade_for(variant_code, options = {})
+      purchase = self.new('base_package', options)
+      desired_variant = purchase.package.variants.detect {|v| v.code == variant_code}
+      raise "Couldn't find variant #{variant_code} for package #{purchase.package.inspect}" unless desired_variant
+      desired_variant[:default] = true
       purchase.variants << variant_code
       purchase
     end
 
     def self.new_consult_purchase(options = {})
       # a little hacky, but it let's you upgrade from 0 which is equivalent to purchasing new
-      upgrade_for('consult.physician.0')
+      upgrade_for('consult.physician.0', options)
     end
 
     def ==(other)
@@ -134,7 +137,7 @@ class Emerald
     def package=(package_or_package_code)
       if package_or_package_code.is_a? Package
         @package = package_or_package_code
-      elsif package = Emerald.find_package(package_or_package_code)
+      elsif package = Emerald.find_package(package_or_package_code, available_in_state: @available_in_state)
         @package = package
       else
         raise Emerald::Error::PackageNotFound, package_or_package_code
@@ -251,9 +254,14 @@ class Emerald
   # Looks up a package by its code ("product key" on Emerald).
   # Returns nil if it's not found.
   #
-  def self.find_package(code)
+  def self.find_package(code, options = {})
     begin
-      resp = connection.get("/emerald_api/packages/show/#{URI.escape code}")
+      if options[:available_in_state]
+        state_option = "?state=#{options[:available_in_state]}"
+      else
+        warn_about_find_package_without_state
+      end
+      resp = connection.get("/emerald_api/packages/show/#{URI.escape code}#{state_option}")
       if resp.success?
         Package.new(resp.body)
       else
@@ -261,6 +269,16 @@ class Emerald
       end
     rescue Faraday::Error::ConnectionFailed,Faraday::Error::ParsingError
       nil
+    end
+  end
+
+  # Make this easy to override for client projects
+  def self.warn_about_find_package_without_state
+    puts "WARNING: Called find_package without specifying available_in_state"
+    begin
+      raise "No state"
+    rescue => ex
+      puts ex.backtrace[2..-1].join("\n")
     end
   end
 
@@ -286,6 +304,9 @@ class Emerald
   # argument.
   #
   def self.find_coupon(code, purchase)
+    if Rails.env.test?
+      mock_coupon = Emerald::Test::find_mock_coupon(code, purchase) and return mock_coupon
+    end
     begin
       resp = connection.get("/emerald_api/coupons/show/#{URI.escape code}") do |req|
         req.params[:product_key] = purchase.package.code

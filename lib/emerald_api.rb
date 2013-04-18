@@ -10,8 +10,17 @@ require 'active_support/core_ext'
 
 class Emerald
   module Error
+    class Unexpected < RuntimeError; end
     class PackageNotFound < RuntimeError; end
     class VariantNotFound < RuntimeError; end
+    class PackageNotAvailableInState < RuntimeError
+      attr :code, :state
+      def initialize(code, state)
+        @code = code
+        @state = state
+        super("Package #{code} not available in #{state}")
+      end
+    end
   end
 
   # This by all means *should* be a hashie::mash as well. But that library
@@ -137,10 +146,8 @@ class Emerald
     def package=(package_or_package_code)
       if package_or_package_code.is_a? Package
         @package = package_or_package_code
-      elsif package = Emerald.find_package(package_or_package_code, available_in_state: @available_in_state)
-        @package = package
       else
-        raise Emerald::Error::PackageNotFound, package_or_package_code
+        @package = Emerald.find_package(package_or_package_code, available_in_state: @available_in_state)
       end
     end
 
@@ -252,23 +259,26 @@ class Emerald
   public
   ##
   # Looks up a package by its code ("product key" on Emerald).
-  # Returns nil if it's not found.
+  # Raises an error if not found.
   #
   def self.find_package(code, options = {})
-    begin
-      if options[:available_in_state]
-        state_option = "?state=#{options[:available_in_state]}"
-      else
-        warn_about_find_package_without_state
+    if options[:available_in_state]
+      state_option = "?state=#{options[:available_in_state]}"
+    else
+      warn_about_find_package_without_state
+    end
+    resp = connection.get("/emerald_api/packages/show/#{URI.escape code}#{state_option}")
+    if resp.success?
+      Package.new(resp.body)
+    else
+      if result = resp.body
+        if result['error_code'] == 'not_available_in_state'
+          raise Emerald::Error::PackageNotAvailableInState.new code, options[:available_in_state]
+        elsif resp.code == 404
+          raise Emerald::Error::PackageNotFound, code
+        end
       end
-      resp = connection.get("/emerald_api/packages/show/#{URI.escape code}#{state_option}")
-      if resp.success?
-        Package.new(resp.body)
-      else
-        nil
-      end
-    rescue Faraday::Error::ConnectionFailed,Faraday::Error::ParsingError
-      nil
+      raise Emerald::Error::Unexpected, "Response code #{resp.code} body: #{resp.body}"
     end
   end
 

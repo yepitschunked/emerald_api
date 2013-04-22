@@ -274,7 +274,7 @@ class Emerald
       if result = resp.body
         if result['error_code'] == 'not_available_in_state'
           raise Emerald::Error::PackageNotAvailableInState.new code, options[:available_in_state]
-        elsif resp.code == 404
+        elsif result['error'] == 'Package not found' or resp.code == 404
           raise Emerald::Error::PackageNotFound, code
         end
       end

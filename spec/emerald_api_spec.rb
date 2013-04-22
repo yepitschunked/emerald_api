@@ -61,8 +61,8 @@ describe Emerald do
         purchase.package.should == @mock_package
       end
       it 'should raise PackageNotFound with invalid package code' do
-        Emerald.stub(:find_package).and_return(nil)
-        expect { Emerald::Purchase.new('asdfasdf') }.to raise_error(Emerald::Error::PackageNotFound, 'asdfasdf')
+        Emerald.stub(:url).and_return('http://emerald-acceptance.herokuapp.com')
+        expect { Emerald::Purchase.new('asdfasdf', available_in_state: 'CA') }.to raise_error(Emerald::Error::PackageNotFound, 'asdfasdf')
       end
       it 'should set the organization' do
         purchase(organization: 'test org').organization.should == 'test org'

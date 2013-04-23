@@ -1,7 +1,7 @@
 Gem::Specification.new do |s|
   s.name        = 'emerald_api'
-  s.version     = '3.7.1'
-  s.date        = '2013-04-17'
+  s.version     = '3.7.2'
+  s.date        = '2013-04-22'
   s.summary     = "Emerald API"
   s.description = "Interfaces with Emerald"
   s.authors     = ["Victor Lin","Jeremy J. Barth"]

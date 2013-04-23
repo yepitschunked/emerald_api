@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    emerald_api (3.7.1)
+    emerald_api (3.7.2)
       factory_girl
       faraday
       faraday_middleware

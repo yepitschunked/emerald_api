@@ -83,9 +83,7 @@ class Emerald
 
       self.variants = (options[:variants] || []) + self.package.default_variants.map(&:dup)
       self.coupon = options[:coupon_code]
-      @original_credit = options[:credit]
       self.credit = options[:credit]
-      @original_discount = options[:discount]
       self.discount = options[:discount]
     end
 
@@ -153,39 +151,18 @@ class Emerald
 
     def credit=(credit_in_cents)
       @credit = Credit.new({"credit_in_cents" => (credit_in_cents ? credit_in_cents : 0)})
- 
-      # credit is applied after coupon
-      discounts = 0
-      discounts = discounts + self.coupon.discount_in_cents if self.coupon
-      discounts = discounts + self.discount.discount_in_cents if self.discount
-      @credit.credit_in_cents = [@credit.credit_in_cents, self.subtotal_in_cents - discounts].min
     end
 
     def discount=(discount_in_cents)
-      if discount_in_cents.to_i > 0 
-        @discount = Discount.new({"discount_in_cents" => discount_in_cents}) 
-        if self.coupon
-          @discount.discount_in_cents = [@discount.discount_in_cents, self.subtotal_in_cents - self.coupon.discount_in_cents].min
-        else 
-          @discount.discount_in_cents = [@discount.discount_in_cents, self.subtotal_in_cents].min
-        end
-      end
-      self.credit = @original_credit
+      @discount = Discount.new({"discount_in_cents" => discount_in_cents}) if discount_in_cents.to_i > 0
     end
 
     def coupon=(coupon_or_coupon_code)
       if coupon_or_coupon_code.is_a?(Coupon) || coupon_or_coupon_code.nil? # no modification needed
         @coupon = coupon_or_coupon_code
       else
-        coupon = Emerald.find_coupon(coupon_or_coupon_code, self) # returns nil if coupon not found
-        if coupon
-          # Can't discount more than the purchase is worth
-          coupon.discount_in_cents = [coupon.discount_in_cents, self.subtotal_in_cents].min
-        end
-        @coupon = coupon
+        @coupon = Emerald.find_coupon(coupon_or_coupon_code, self) # returns nil if coupon not found
       end
-      # make sure discount/credits get applied in the correct order of preference
-      self.discount = @original_discount
     end
 
     def subtotal_in_cents
@@ -194,9 +171,18 @@ class Emerald
 
     def total_in_cents
       total_in_cents = self.subtotal_in_cents
-      total_in_cents = total_in_cents - self.credit.credit_in_cents if self.credit
-      total_in_cents = total_in_cents - self.coupon.discount_in_cents if self.coupon
-      total_in_cents = total_in_cents - self.discount.discount_in_cents if self.discount
+
+      discounts = 0
+      if self.coupon
+        discounts = [self.coupon.discount_in_cents, self.subtotal_in_cents].min
+        total_in_cents = total_in_cents - [self.coupon.discount_in_cents, self.subtotal_in_cents].min
+      else
+        # coupons and discounts can't be used together
+        total_in_cents = total_in_cents - [self.discount.discount_in_cents, self.subtotal_in_cents].min if self.discount
+      end
+
+      total_in_cents = total_in_cents - [self.credit.credit_in_cents, self.subtotal_in_cents - discounts].min if self.credit
+
       total_in_cents
     end
 

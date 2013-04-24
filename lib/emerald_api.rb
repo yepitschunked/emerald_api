@@ -83,9 +83,7 @@ class Emerald
 
       self.variants = (options[:variants] || []) + self.package.default_variants.map(&:dup)
       self.coupon = options[:coupon_code]
-      @original_credit = options[:credit]
       self.credit = options[:credit]
-      @original_discount = options[:discount]
       self.discount = options[:discount]
     end
 
@@ -153,51 +151,39 @@ class Emerald
 
     def credit=(credit_in_cents)
       @credit = Credit.new({"credit_in_cents" => (credit_in_cents ? credit_in_cents : 0)})
- 
-      # credit is applied after coupon
-      discounts = 0
-      discounts = discounts + self.coupon.discount_in_cents if self.coupon
-      discounts = discounts + self.discount.discount_in_cents if self.discount
-      @credit.credit_in_cents = [@credit.credit_in_cents, self.subtotal_in_cents - discounts].min
     end
 
     def discount=(discount_in_cents)
-      if discount_in_cents.to_i > 0 
-        @discount = Discount.new({"discount_in_cents" => discount_in_cents}) 
-        if self.coupon
-          @discount.discount_in_cents = [@discount.discount_in_cents, self.subtotal_in_cents - self.coupon.discount_in_cents].min
-        else 
-          @discount.discount_in_cents = [@discount.discount_in_cents, self.subtotal_in_cents].min
-        end
-      end
-      self.credit = @original_credit
+      @discount = Discount.new({"discount_in_cents" => discount_in_cents}) if discount_in_cents.to_i > 0
     end
 
     def coupon=(coupon_or_coupon_code)
       if coupon_or_coupon_code.is_a?(Coupon) || coupon_or_coupon_code.nil? # no modification needed
         @coupon = coupon_or_coupon_code
       else
-        coupon = Emerald.find_coupon(coupon_or_coupon_code, self) # returns nil if coupon not found
-        if coupon
-          # Can't discount more than the purchase is worth
-          coupon.discount_in_cents = [coupon.discount_in_cents, self.subtotal_in_cents].min
-        end
-        @coupon = coupon
+        @coupon = Emerald.find_coupon(coupon_or_coupon_code, self) # returns nil if coupon not found
       end
-      # make sure discount/credits get applied in the correct order of preference
-      self.discount = @original_discount
     end
 
     def subtotal_in_cents
       self.package.cost_in_cents + self.variants.map(&:cost_in_cents).sum - self.package.default_variants.map(&:cost_in_cents).sum
     end
 
+    def coupon_used_in_cents
+      self.coupon ? [self.coupon.discount_in_cents, self.subtotal_in_cents].min : 0
+    end
+
+    def discount_used_in_cents
+      # coupons and discounts can't be used together
+      (self.discount and !self.coupon) ? [self.discount.discount_in_cents, self.subtotal_in_cents].min : 0
+    end
+
+    def credit_used_in_cents
+      self.credit ? [self.credit.credit_in_cents, self.subtotal_in_cents - self.coupon_used_in_cents].min : 0
+    end
+
     def total_in_cents
-      total_in_cents = self.subtotal_in_cents
-      total_in_cents = total_in_cents - self.credit.credit_in_cents if self.credit
-      total_in_cents = total_in_cents - self.coupon.discount_in_cents if self.coupon
-      total_in_cents = total_in_cents - self.discount.discount_in_cents if self.discount
-      total_in_cents
+      self.subtotal_in_cents - self.coupon_used_in_cents - self.discount_used_in_cents - self.credit_used_in_cents
     end
 
     def total
@@ -213,7 +199,10 @@ class Emerald
                   subtotal: subtotal,
                   total_in_cents: total_in_cents,
                   total: total,
-                  variants: variants
+                  variants: variants,
+                  coupon_used_in_cents: coupon_used_in_cents,
+                  discount_used_in_cents: discount_used_in_cents,
+                  credit_used_in_cents: credit_used_in_cents
                  ).stringify_keys
     end
 
@@ -274,7 +263,7 @@ class Emerald
       if result = resp.body
         if result['error_code'] == 'not_available_in_state'
           raise Emerald::Error::PackageNotAvailableInState.new code, options[:available_in_state]
-        elsif resp.code == 404
+        elsif result['error'] == 'Package not found' or resp.code == 404
           raise Emerald::Error::PackageNotFound, code
         end
       end

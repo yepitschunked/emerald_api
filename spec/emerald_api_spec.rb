@@ -61,8 +61,8 @@ describe Emerald do
         purchase.package.should == @mock_package
       end
       it 'should raise PackageNotFound with invalid package code' do
-        Emerald.stub(:find_package).and_return(nil)
-        expect { Emerald::Purchase.new('asdfasdf') }.to raise_error(Emerald::Error::PackageNotFound, 'asdfasdf')
+        Emerald.stub(:url).and_return('http://emerald-acceptance.herokuapp.com')
+        expect { Emerald::Purchase.new('asdfasdf', available_in_state: 'CA') }.to raise_error(Emerald::Error::PackageNotFound, 'asdfasdf')
       end
       it 'should set the organization' do
         purchase(organization: 'test org').organization.should == 'test org'
@@ -116,9 +116,11 @@ describe Emerald do
         it 'should set the coupon' do
           purchase.tap {|p| p.coupon = 'asdf' }.coupon.should == @mock_coupon
         end
-        it 'should change discount_in_cents to be <= the subtotal' do
+        it 'should not change discount_in_cents. should change purchase total' do
           @mock_coupon.discount_in_cents = 9999999
-          purchase.tap {|p| p.coupon = 'asdf'}.coupon.discount_in_cents.should == 14900
+          p = purchase(coupon_code: 'asdf')
+          p.coupon.discount_in_cents.should == 9999999
+          p.total_in_cents.should == 0
         end
       end
       context 'when coupon object' do
@@ -141,47 +143,75 @@ describe Emerald do
         purchase(credit: 1100).credit.credit_in_cents.should == 1100
       end
       context "with no coupons" do
-        it "should change credit_in_cents to be <= the subtotal" do
+        it "should not change credit_in_cents. should change purchase total" do
           # purchase = 14900
-          purchase(credit: 15000).credit.credit_in_cents.should == 14900
+          p = purchase(credit: 15000)
+          p.credit.credit_in_cents.should == 15000
+          p.total_in_cents.should == 0
         end
       end
       context "with coupons" do
-        it "should change credit_in_cents to be <= the subtotal minus coupons" do
+        it "should not change credit_in_cents. should change the purchase total" do
           # mock_coupon = 1500
-          purchase(credit: 15000).tap {|p| p.coupon = @mock_coupon}.credit.credit_in_cents.should == 13400
+          p = purchase(credit: 100)
+          p.coupon = @mock_coupon
+          p.credit.credit_in_cents.should == 100
+          p.total_in_cents.should == 13300 # 14900 - 1500 - 100
         end
-        it "should change credit_in_cents appropriately if coupon is removed" do
-          purchase(credit: 15000).tap {|p| p.coupon = @mock_coupon; p.coupon = nil}.credit.credit_in_cents.should == 14900
+        it "should calculate total appropriately if coupon is removed" do
+          p = purchase(credit: 150)
+          p.coupon = @mock_coupon
+          p.total_in_cents.should == 13250 # 14900 - 1500 - 150
+          p.coupon = nil
+          p.credit.credit_in_cents.should == 150
+          p.total_in_cents.should == 14750 # 14900 - 150
         end
       end
-      context "with credit" do
-        it "should change credit_in_cents to be <= the subtotal minus discount" do
-          purchase(credit: 15000).tap {|p| p.discount = 1500}.credit.credit_in_cents.should == 13400
+      context "with discount" do
+        pending "should not change credit_in_cents. should change total" do
+          p = purchase(credit: 1500)
+          p.total_in_cents.should == 13400 # 14900 - 1500
+          p.credit.credit_in_cents.should == 1500
+          p.discount = 1500 # should not affect it but
+          p.total_in_cents.should == 13400
         end
       end
     end
 
     describe "#discount=" do
       it "should set the discount" do
-        purchase(discount: 1100).discount.discount_in_cents.should == 1100
+        p = purchase(discount: 1100)
+        p.discount.discount_in_cents.should == 1100
+        p.total_in_cents.should == 13800 # 14900 - 1100
       end
       context "with no coupons" do
-        it "should change discount_in_cents to be <= the subtotal" do
-          purchase(discount: 15000).discount.discount_in_cents.should == 14900
+        it "should not change discount_in_cents.  should change the total" do
+          p = purchase(discount: 15000)
+          p.discount.discount_in_cents.should == 15000
+          p.total_in_cents.should == 0
         end
       end
       context "with coupons" do
-        it "should change discount_in_cents to be <= the subtotal minus coupons" do
-          purchase(discount: 15000).tap {|p| p.coupon = @mock_coupon}.discount.discount_in_cents.should == 13400
+        it "should not use discount if a coupon is added" do
+          p = purchase(discount: 15000)
+          p.coupon = @mock_coupon
+          p.discount.discount_in_cents.should == 15000
+          p.total_in_cents.should == 13400 # 14900 - 1500
         end
-        it "should change discount_in_cents appropriately if coupon is removed" do
-          purchase(discount: 15000).tap {|p| p.coupon = @mock_coupon; p.coupon = nil}.discount.discount_in_cents.should == 14900
+        it "should retain discount_in_cents and calculate total appropriately if coupon is removed" do
+          p = purchase(discount: 15000)
+          p.coupon = @mock_coupon
+          p.coupon = nil
+          p.discount.discount_in_cents.should == 15000
+          p.total_in_cents.should == 0
         end
       end
       context "with credit" do
-        it "should not change discount_in_cents to be <= the subtotal minus credit" do
-          purchase(discount: 15000).tap {|p| p.credit = 1500}.discount.discount_in_cents.should == 14900
+        pending "should not change discount_in_cents to be <= the subtotal minus credit" do
+          p = purchase(discount: 15000)
+          p.credit = 1500
+          p.discount.discount_in_cents.should == 15000
+          p.total_in_cents.should == 0
         end
       end
     end

@@ -169,21 +169,21 @@ class Emerald
       self.package.cost_in_cents + self.variants.map(&:cost_in_cents).sum - self.package.default_variants.map(&:cost_in_cents).sum
     end
 
+    def coupon_used_in_cents
+      self.coupon ? [self.coupon.discount_in_cents, self.subtotal_in_cents].min : 0
+    end
+
+    def discount_used_in_cents
+      # coupons and discounts can't be used together
+      (self.discount and !self.coupon) ? [self.discount.discount_in_cents, self.subtotal_in_cents].min : 0
+    end
+
+    def credit_used_in_cents
+      self.credit ? [self.credit.credit_in_cents, self.subtotal_in_cents - self.coupon_used_in_cents].min : 0
+    end
+
     def total_in_cents
-      total_in_cents = self.subtotal_in_cents
-
-      discounts = 0
-      if self.coupon
-        discounts = [self.coupon.discount_in_cents, self.subtotal_in_cents].min
-        total_in_cents = total_in_cents - [self.coupon.discount_in_cents, self.subtotal_in_cents].min
-      else
-        # coupons and discounts can't be used together
-        total_in_cents = total_in_cents - [self.discount.discount_in_cents, self.subtotal_in_cents].min if self.discount
-      end
-
-      total_in_cents = total_in_cents - [self.credit.credit_in_cents, self.subtotal_in_cents - discounts].min if self.credit
-
-      total_in_cents
+      self.subtotal_in_cents - self.coupon_used_in_cents - self.discount_used_in_cents - self.credit_used_in_cents
     end
 
     def total
@@ -199,7 +199,10 @@ class Emerald
                   subtotal: subtotal,
                   total_in_cents: total_in_cents,
                   total: total,
-                  variants: variants
+                  variants: variants,
+                  coupon_used_in_cents: coupon_used_in_cents,
+                  discount_used_in_cents: discount_used_in_cents,
+                  credit_used_in_cents: credit_used_in_cents
                  ).stringify_keys
     end
 

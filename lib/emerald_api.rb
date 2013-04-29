@@ -90,7 +90,6 @@ class Emerald
     def self.upgrade_for(variant_code, options = {})
       purchase = self.new('base_package', options)
       desired_variant = purchase.package.variants.detect {|v| v.code == variant_code}
-      #raise "Couldn't find variant #{variant_code} for package #{purchase.package.inspect}" unless desired_variant
       raise Emerald::Error::PackageNotAvailableInState.new variant_code, options[:available_in_state] unless desired_variant
       desired_variant[:default] = true
       purchase.variants << variant_code

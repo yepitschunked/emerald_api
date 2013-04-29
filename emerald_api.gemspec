@@ -1,11 +1,11 @@
 Gem::Specification.new do |s|
   s.name        = 'emerald_api'
-  s.version     = '3.7.3'
+  s.version     = '3.7.4'
   s.date        = '2013-04-29'
   s.summary     = "Emerald API"
   s.description = "Interfaces with Emerald"
-  s.authors     = ["Victor Lin","Jeremy J. Barth"]
-  s.email       = ['victor@wellnessfx.com','jeremy@wellnessfx.com']
+  s.authors     = ["Victor Lin","Jeremy J. Barth","Chris Williams"]
+  s.email       = ['victor@wellnessfx.com','jeremy@wellnessfx.com','chris@wellnessfx.com']
   s.files       = ["lib/emerald_api.rb"]
   s.homepage    =
     'http://rubygems.org/gems/emerald_api'

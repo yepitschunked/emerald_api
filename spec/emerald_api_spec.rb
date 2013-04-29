@@ -11,8 +11,8 @@ def build_mock_package
    "created_at"=>"2012-05-29T17:25:52Z",
    "updated_at"=>"2012-05-29T17:25:52Z",
    "variants"=>
-    [{"name"=>"Vitamin D", "cost_in_cents"=>4000, "code"=>"vitamin_d"},
-      {"name"=>"Vitamin B", "cost_in_cents"=>1000, "code"=>"vitamin_b"}
+    [{"name"=>"Vitamin D", "cost_in_cents"=>4000, "code"=>"vitamin_d", 'default' => false},
+      {"name"=>"Vitamin B", "cost_in_cents"=>1000, "code"=>"vitamin_b", 'default' => false}
     ]
   })
 end
@@ -28,7 +28,6 @@ def build_mock_coupon
    "updated_at"=>"2012-05-29T20:31:22Z"})
 end
 
-
 describe Emerald do
   before do
     @mock_coupon = build_mock_coupon
@@ -37,6 +36,17 @@ describe Emerald do
   describe Emerald::Package do
     it 'should respond to .active?' do
       @mock_package.should respond_to(:active?)
+    end
+    describe 'default and choosable variants' do
+      before do
+        @mock_package.variants << Emerald::Variant.new(name: 'default variant', code: 'default_variant', cost_in_cents: 12345, default: true)
+      end
+      it 'should return #choosable_variants' do
+        @mock_package.choosable_variants.map(&:code).should == ['vitamin_d', 'vitamin_b']
+      end
+      it 'should return #default_variants' do
+        @mock_package.default_variants.map(&:code).should == ['default_variant']
+      end
     end
   end
 
@@ -51,11 +61,50 @@ describe Emerald do
         purchase.package.should == @mock_package
       end
       it 'should raise PackageNotFound with invalid package code' do
-        Emerald.stub(:find_package).and_return(nil)
-        expect { Emerald::Purchase.new('asdfasdf') }.to raise_error(Emerald::Error::PackageNotFound, 'asdfasdf')
+        Emerald.stub(:url).and_return('http://emerald-acceptance.herokuapp.com')
+        expect { Emerald::Purchase.new('asdfasdf', available_in_state: 'CA') }.to raise_error(Emerald::Error::PackageNotFound, 'asdfasdf')
       end
       it 'should set the organization' do
         purchase(organization: 'test org').organization.should == 'test org'
+      end
+      it 'should default the credit to 0 if none is passed' do
+        purchase.credit.should == Emerald::Credit.new({"credit_in_cents"=>0})
+      end
+      it 'should set the credit if passed' do
+        purchase(credit: 1).credit.should == Emerald::Credit.new({"credit_in_cents"=>1})
+      end
+      it 'should not default the discount if none is passed' do
+        purchase.discount.should be_nil
+      end
+      it 'should set the discount if passed' do
+        purchase(discount: 1).discount.should == Emerald::Discount.new({"discount_in_cents"=>1})
+      end
+    end
+
+    # XXX: This test depends on Emerald being up, but it was easier than trying
+    # to scaffold out a bunch of packages and variants and shit
+    describe 'upgrade_for' do
+      before do
+        Emerald.stub(:url).and_return('http://emerald-acceptance.herokuapp.com')
+      end
+      it 'should return a purchase object' do
+        Emerald::Purchase.upgrade_for('consult.physician.45', available_in_state: 'CA').should be_a Emerald::Purchase
+      end
+      it 'should be base_package' do
+        Emerald::Purchase.upgrade_for('consult.physician.45', available_in_state: 'CA').package.code.should == 'base_package'
+      end
+      it 'should only have one line item (the consult)' do
+        purchase = Emerald::Purchase.upgrade_for('consult.physician.45', available_in_state: 'CA')
+        purchase.variants.length.should == 1
+        purchase.variants.first.code.should =~ /consult/
+      end
+      it 'should have the consult marked as default' do
+        purchase = Emerald::Purchase.upgrade_for('consult.physician.45', available_in_state: 'CA')
+        purchase.variants.first.should be_default
+      end
+      it 'should have the consult default_code equal to the consult to be upgraded from' do
+        purchase = Emerald::Purchase.upgrade_for('consult.physician.45', available_in_state: 'CA')
+        purchase.variants.first.default_code.should == "consult.physician.45"
       end
     end
 
@@ -67,9 +116,11 @@ describe Emerald do
         it 'should set the coupon' do
           purchase.tap {|p| p.coupon = 'asdf' }.coupon.should == @mock_coupon
         end
-        it 'should change discount_in_cents to be <= the subtotal' do
+        it 'should not change discount_in_cents. should change purchase total' do
           @mock_coupon.discount_in_cents = 9999999
-          purchase.tap {|p| p.coupon = 'asdf'}.coupon.discount_in_cents.should == 14900
+          p = purchase(coupon_code: 'asdf')
+          p.coupon.discount_in_cents.should == 9999999
+          p.total_in_cents.should == 0
         end
       end
       context 'when coupon object' do
@@ -87,12 +138,93 @@ describe Emerald do
       end
     end
 
+    describe '#credit=' do
+      it "should set the credit" do
+        purchase(credit: 1100).credit.credit_in_cents.should == 1100
+      end
+      context "with no coupons" do
+        it "should not change credit_in_cents. should change purchase total" do
+          # purchase = 14900
+          p = purchase(credit: 15000)
+          p.credit.credit_in_cents.should == 15000
+          p.total_in_cents.should == 0
+        end
+      end
+      context "with coupons" do
+        it "should not change credit_in_cents. should change the purchase total" do
+          # mock_coupon = 1500
+          p = purchase(credit: 100)
+          p.coupon = @mock_coupon
+          p.credit.credit_in_cents.should == 100
+          p.total_in_cents.should == 13300 # 14900 - 1500 - 100
+        end
+        it "should calculate total appropriately if coupon is removed" do
+          p = purchase(credit: 150)
+          p.coupon = @mock_coupon
+          p.total_in_cents.should == 13250 # 14900 - 1500 - 150
+          p.coupon = nil
+          p.credit.credit_in_cents.should == 150
+          p.total_in_cents.should == 14750 # 14900 - 150
+        end
+      end
+      context "with discount" do
+        pending "should not change credit_in_cents. should change total" do
+          p = purchase(credit: 1500)
+          p.total_in_cents.should == 13400 # 14900 - 1500
+          p.credit.credit_in_cents.should == 1500
+          p.discount = 1500 # should not affect it but
+          p.total_in_cents.should == 13400
+        end
+      end
+    end
+
+    describe "#discount=" do
+      it "should set the discount" do
+        p = purchase(discount: 1100)
+        p.discount.discount_in_cents.should == 1100
+        p.total_in_cents.should == 13800 # 14900 - 1100
+      end
+      context "with no coupons" do
+        it "should not change discount_in_cents.  should change the total" do
+          p = purchase(discount: 15000)
+          p.discount.discount_in_cents.should == 15000
+          p.total_in_cents.should == 0
+        end
+      end
+      context "with coupons" do
+        it "should not use discount if a coupon is added" do
+          p = purchase(discount: 15000)
+          p.coupon = @mock_coupon
+          p.discount.discount_in_cents.should == 15000
+          p.total_in_cents.should == 13400 # 14900 - 1500
+        end
+        it "should retain discount_in_cents and calculate total appropriately if coupon is removed" do
+          p = purchase(discount: 15000)
+          p.coupon = @mock_coupon
+          p.coupon = nil
+          p.discount.discount_in_cents.should == 15000
+          p.total_in_cents.should == 0
+        end
+      end
+      context "with credit" do
+        pending "should not change discount_in_cents to be <= the subtotal minus credit" do
+          p = purchase(discount: 15000)
+          p.credit = 1500
+          p.discount.discount_in_cents.should == 15000
+          p.total_in_cents.should == 0
+        end
+      end
+    end
+
     describe 'variants' do
       context 'with invalid variants' do
         it 'should raise VariantNotFound' do
-          invalid_purchase = purchase(variants: ['asdfasdf'])
-          expect { invalid_purchase.variants }.to raise_error(Emerald::Error::VariantNotFound, 'asdfasdf')
+          expect { purchase(variants: ['asdfasdf']) }.to raise_error(Emerald::Error::VariantNotFound, 'asdfasdf')
         end
+      end
+      it 'should add the package default variants when creating a new purchase' do
+        @mock_package.variants << Emerald::Variant.new(name: 'default variant', code: 'default_variant', cost_in_cents: 12345, default: true)
+        purchase.variants.detect {|v| v.code == 'default_variant'}.should_not be_nil
       end
       it 'should return an array of variant objects, not strings' do
         purchase(variants: ['vitamin_b']).variants.first.should == @mock_package.find_variant_by_code('vitamin_b')
@@ -103,6 +235,10 @@ describe Emerald do
     end
 
     describe 'subtotal_in_cents' do
+      it 'should subtract cost of default variants' do
+        @mock_package.variants << Emerald::Variant.new(name: 'default variant', code: 'default_variant', cost_in_cents: 12345, default: true)
+        purchase.subtotal_in_cents.should == @mock_package.cost_in_cents
+      end
       it 'should be package cost with no variants' do
         purchase.subtotal_in_cents.should == @mock_package.cost_in_cents
       end
@@ -114,6 +250,15 @@ describe Emerald do
       end
       it 'should have subtotal helper method' do
         purchase.subtotal.should == purchase.subtotal_in_cents / 100.0
+      end
+      it "should ignore credit" do
+        purchase(credit: 1000).subtotal_in_cents.should == @mock_package.cost_in_cents
+      end
+      it "should ignore credit" do
+        purchase(discount: 1000).subtotal_in_cents.should == @mock_package.cost_in_cents
+      end
+      it "should accurately determine total when reconstituted from a hash" do
+        purchase.tap{|p| p.instance_variable_set(:@credit, nil)}.subtotal_in_cents.should == 14900
       end
     end
 
@@ -128,6 +273,15 @@ describe Emerald do
       end
       it 'should have total helper method' do
         purchase.total.should == purchase.total_in_cents / 100.0
+      end
+      it "should be subtotal minus credit" do
+        purchase(credit: 1000).total_in_cents.should == purchase.total_in_cents - 1000
+      end
+      it "should be subtotal minus discount" do
+        purchase(discount: 1000).total_in_cents.should == purchase.total_in_cents - 1000
+      end
+      it "should accurately determine total when reconstituted from a hash" do
+        purchase.tap{|p| p.instance_variable_set(:@credit, nil)}.total_in_cents.should == 14900
       end
     end
   end

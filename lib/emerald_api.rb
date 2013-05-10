@@ -12,6 +12,7 @@ class Emerald
   module Error
     class Unexpected < RuntimeError; end
     class PackageNotFound < RuntimeError; end
+    class StateListNotFound < RuntimeError; end
     class VariantNotFound < RuntimeError; end
     class PackageNotAvailableInState < RuntimeError
       attr :code, :state
@@ -263,11 +264,11 @@ class Emerald
       if result = resp.body
         if result['error_code'] == 'not_available_in_state'
           raise Emerald::Error::PackageNotAvailableInState.new code, options[:available_in_state]
-        elsif result['error'] == 'Package not found' or resp.code == 404
+        elsif result['error'] == 'Package not found' or resp.status == 404
           raise Emerald::Error::PackageNotFound, code
         end
       end
-      raise Emerald::Error::Unexpected, "Response code #{resp.code} body: #{resp.body}"
+      raise Emerald::Error::Unexpected, "Response code #{resp.status} body: #{resp.body}"
     end
   end
 
@@ -285,15 +286,23 @@ class Emerald
   # Lists all packages on Emerald.
   #
   def self.packages
-    begin
-      resp = connection.get("/emerald_api/packages/index")
-      if resp.success?
-        resp.body.map {|package| package.cost = package.cost_in_cents / 100.0; Package.new(package)}
-      else
-        nil
-      end
-    rescue Faraday::Error::ConnectionFailed,Faraday::Error::ParsingError
-      nil
+    resp = connection.get("/emerald_api/packages/index")
+    if resp.success?
+      resp.body.map {|package| package.cost = package.cost_in_cents / 100.0; Package.new(package)}
+    else
+      raise Emerald::Error::Unexpected, "Response code #{resp.status} body: #{resp.body}"
+    end
+  end
+
+  # Return states from a named list
+  def self.states_in_list(name)
+    resp = connection.get("/emerald_api/state_lists/#{name}")
+    if resp.success?
+      resp.body["states"]
+    elsif resp.status == 404
+      raise Emerald::Error::StateListNotFound, name
+    else
+      raise Emerald::Error::Unexpected, "Response code #{resp.status} body: #{resp.body}"
     end
   end
 
